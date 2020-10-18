@@ -1,77 +1,50 @@
-name: Docker
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+# This workflow will download a prebuilt Ruby version, install dependencies and run tests with Rake
+# For more information see: https://github.com/marketplace/actions/setup-ruby-jruby-and-truffleruby
+
+name: Jets Deploy Sample
 
 on:
-  push:
-    # Publish `main` as Docker `latest` image.
-    branches:
-      - main
-
-    # Publish `v1.2.3` tags as releases.
-    tags:
-      - v*
-
-  # Run tests for any PRs.
   pull_request:
+    types: [opened, synchronize]
+    branches:
+      - develop
+      # - staging
+      # - main
+  push:
+    branches:
+      # - 'feature/*'
+      - develop
+      # - staging
+      # - main
 
 env:
-  # TODO: Change variable to your image's name.
-  IMAGE_NAME: image
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
-  # Run tests.
-  # See also https://docs.docker.com/docker-hub/builds/automated-testing/
-  test:
+  image-build-and-rspec-and-deploy:
+    name: image build & rspec & deploy
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v2
-
-      - name: Run tests
-        run: |
-          if [ -f docker-compose.test.yml ]; then
-            docker-compose --file docker-compose.test.yml build
-            docker-compose --file docker-compose.test.yml run sut
-          else
-            docker build . --file Dockerfile
-          fi
-
-  # Push image to GitHub Packages.
-  # See also https://docs.docker.com/docker-hub/builds/
-  push:
-    # Ensure test job passes before pushing image.
-    needs: test
-
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Build image
-        run: docker build . --file Dockerfile --tag $IMAGE_NAME
-
-      - name: Log into GitHub Container Registry
-      # TODO: Create a PAT with `read:packages` and `write:packages` scopes and save it as an Actions secret `CR_PAT`
-        run: echo "${{ secrets.CR_PAT }}" | docker login https://ghcr.io -u ${{ github.actor }} --password-stdin
-
-      - name: Push image to GitHub Container Registry
-        run: |
-          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
-
-          # Change all uppercase to lowercase
-          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
-
-          # Strip git ref prefix from version
-          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
-
-          # Strip "v" prefix from tag name
-          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
-
-          # Use Docker `latest` tag convention
-          [ "$VERSION" == "main" ] && VERSION=latest
-
-          echo IMAGE_ID=$IMAGE_ID
-          echo VERSION=$VERSION
-
-          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
-          docker push $IMAGE_ID:$VERSION
+    - name: Check out code
+      id: checkout
+      uses: actions/checkout@v2
+    - name: Docker build
+      id: docker-build
+      run: docker-compose build
+    - name: run rspec
+      run: docker-compose run --rm app rspec
+    - name: deploy
+      # # プルリクエストがマージされた時のみ実行
+      if: ${{ github.event.pull_request.merged == true }}
+      run: |
+        docker-compose run --rm \
+        -e AWS_REGION=ap-northeast-1 \
+        -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+        -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+        -e JETS_AGREE=yes \
+        app jets deploy development
