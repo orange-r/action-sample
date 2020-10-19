@@ -14,7 +14,6 @@ RUN apt-get update -qq && \
 COPY Gemfile $APP_PATH/
 COPY Gemfile.lock APP_PATH/
 
-RUN bundle install --system
 COPY . $APP_PATH
 
 # Install yarn
