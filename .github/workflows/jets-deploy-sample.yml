@@ -1,0 +1,53 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+# This workflow will download a prebuilt Ruby version, install dependencies and run tests with Rake
+# For more information see: https://github.com/marketplace/actions/setup-ruby-jruby-and-truffleruby
+
+name: Jets Deploy Sample
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - develop
+      # - staging
+      # - main
+  push:
+    branches:
+      # - 'feature/*'
+      - develop
+      # - staging
+      # - main
+
+# env:
+  # AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  # AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+jobs:
+  image-build-and-rspec-and-deploy:
+    name: image build & rspec & deploy
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      id: checkout
+      uses: actions/checkout@v2
+    - name: Docker build
+      id: docker-build
+      run: docker-compose build
+    - name: run bundle install
+      run: docker-compose run --rm app bundle install
+    - name: run rspec
+      run: docker-compose run --rm app rspec
+      #     - name: deploy
+      #       # # プルリクエストがマージされた時のみ実行
+      #       if: ${{ github.event.pull_request.merged == true }}
+      #       run: |
+      #         docker-compose run --rm \
+      #         -e AWS_REGION=ap-northeast-1 \
+      #         -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+      #         -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+      #         -e JETS_AGREE=yes \
+      #         app jets deploy development
+
